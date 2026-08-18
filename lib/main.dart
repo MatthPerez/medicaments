@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:my_meds/constants/colors.dart';
 
 import 'package:my_meds/views/home_page.dart';
-
+import 'package:my_meds/views/medicaments_page.dart';
+import 'package:my_meds/views/plan_sevrage_page.dart';
 
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
@@ -29,6 +30,8 @@ class MyMedsApp extends StatelessWidget {
       navigatorObservers: [routeObserver],
       routes: {
         '/': (BuildContext context) => const HomePage(),
+        '/medicaments': (BuildContext context) => const MedicamentsPage(),
+        '/plan': (BuildContext context) => const PlanSevragePage(),
       },
     );
   }
