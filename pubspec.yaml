@@ -1,0 +1,28 @@
+name: my_meds
+description: "Suivi des médicaments."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - lib/assets/images/medicaments.png
+    - lib/assets/images/plan.png
+    - lib/assets/images/historique.png
+    - lib/assets/images/parametres.png
