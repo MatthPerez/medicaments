@@ -1,4 +1,4 @@
-name: my_meds
+name: medico
 description: "Suivi des médicaments."
 publish_to: "none"
 
@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   google_fonts: ^8.2.1
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

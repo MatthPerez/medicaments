@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:my_meds/constants/colors.dart';
+import 'package:medico/constants/colors.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

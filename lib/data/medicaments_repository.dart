@@ -1,6 +1,6 @@
 // lib/data/medicaments_repository.dart
 import 'package:flutter/foundation.dart';
-import 'package:my_meds/views/medicaments_page.dart' show Medicament;
+import 'package:medico/views/medicaments_page.dart' show Medicament;
 
 /// Source unique de vérité pour la liste des médicaments.
 /// Singleton simple — évite de faire remonter le paramètre `medicaments`

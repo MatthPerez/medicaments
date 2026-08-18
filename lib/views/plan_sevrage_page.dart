@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:my_meds/constants/colors.dart';
-import 'package:my_meds/data/medicaments_repository.dart';
-import 'package:my_meds/data/paliers_repository.dart';
-import 'package:my_meds/views/medicaments_page.dart' show Medicament;
+import 'package:medico/constants/colors.dart';
+import 'package:medico/data/medicaments_repository.dart';
+import 'package:medico/data/paliers_repository.dart';
+import 'package:medico/views/medicaments_page.dart' show Medicament;
 
 class PlanSevragePage extends StatefulWidget {
   const PlanSevragePage({super.key});
@@ -20,6 +20,9 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
     super.initState();
     _medicamentsRepo.addListener(_onChanged);
     _paliersRepo.addListener(_onChanged);
+    if (!_paliersRepo.estCharge) {
+      _paliersRepo.charger();
+    }
   }
 
   @override
@@ -33,6 +36,10 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_paliersRepo.estCharge) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final medicaments = _medicamentsRepo.medicaments;
 
     return Scaffold(
@@ -52,15 +59,14 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
                     onGenererPlan: (dose, pourcentage, delai, dateDebut) {
                       _paliersRepo.genererPlan(
                         medicamentId: medicament.id,
-                        doseDepart: dose,
+                        doseInitiale: dose,
                         pourcentageReduction: pourcentage,
                         delaiJours: delai,
                         dateDebut: dateDebut,
                       );
                     },
-                    onSupprimerEtape: (etape) {
-                      _paliersRepo.supprimerPalier(medicament.id, etape);
-                    },
+                    onSupprimerPlan: () =>
+                        _paliersRepo.supprimerPlan(medicament.id),
                   );
                 },
               ),
@@ -95,147 +101,216 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
 }
 
 // ---------------------------------------------------------------------------
-// Carte par médicament
+// Carte par médicament (repliable + fond coloré selon statut)
 // ---------------------------------------------------------------------------
 
-class _PlanCard extends StatelessWidget {
+class _PlanCard extends StatefulWidget {
   final Medicament medicament;
   final List<EtapePalier> etapes;
   final void Function(
-    double doseDepart,
+    double doseInitiale,
     double pourcentage,
     int delaiJours,
     DateTime dateDebut,
   )
   onGenererPlan;
-  final void Function(EtapePalier) onSupprimerEtape;
+  final VoidCallback onSupprimerPlan;
 
   const _PlanCard({
     required this.medicament,
     required this.etapes,
     required this.onGenererPlan,
-    required this.onSupprimerEtape,
+    required this.onSupprimerPlan,
   });
 
-  /// Dernier palier dont la date est déjà passée (ou aujourd'hui) —
-  /// reflète la dose réellement en cours aujourd'hui, indépendamment
-  /// du fait que le tableau affiche aussi les paliers futurs et passés.
+  @override
+  State<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends State<_PlanCard> {
+  bool _deplie = false;
+
   EtapePalier? get _etapeActuelle {
     final maintenant = DateTime.now();
     EtapePalier? actuel;
-    for (final e in etapes) {
-      if (!e.date.isAfter(maintenant)) {
-        actuel = e;
-      }
+    for (final e in widget.etapes) {
+      if (!e.date.isAfter(maintenant)) actuel = e;
     }
     return actuel;
   }
 
+  bool get _sevrageTermine =>
+      widget.etapes.isNotEmpty &&
+      widget.etapes.last.date.isBefore(DateTime.now());
+
   double get _doseActuellePlan =>
-      _etapeActuelle?.dose ?? medicament.doseActuelle;
+      _etapeActuelle?.dose ?? widget.medicament.doseActuelle;
 
-  double get _pourcentageRestant => medicament.doseInitiale == 0
+  double get _pourcentageRestant => widget.medicament.doseInitiale == 0
       ? 0
-      : (_doseActuellePlan / medicament.doseInitiale) * 100;
-
-  bool get _sevrageAtteint =>
-      _etapeActuelle != null && _etapeActuelle!.dose <= 0;
+      : (_doseActuellePlan / widget.medicament.doseInitiale) * 100;
 
   @override
   Widget build(BuildContext context) {
+    final aUnPlan = widget.etapes.isNotEmpty;
+    final couleurFond = aUnPlan
+        ? (_sevrageTermine
+              ? Colors.green.withValues(alpha: 0.08)
+              : Colors.orange.withValues(alpha: 0.08))
+        : null;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    medicament.nom,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+      color: couleurFond,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: aUnPlan ? () => setState(() => _deplie = !_deplie) : null,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.medicament.nom,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (aUnPlan)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _sevrageTermine
+                                ? Colors.green.shade100
+                                : Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _sevrageTermine ? 'Sevrage terminé' : 'En cours',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _sevrageTermine
+                                  ? Colors.green.shade800
+                                  : Colors.orange.shade800,
+                            ),
+                          ),
+                        ),
+                      if (aUnPlan)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Supprimer ce plan',
+                          onPressed: () => _confirmerSuppression(context),
+                        ),
+                      if (aUnPlan)
+                        Icon(_deplie ? Icons.expand_less : Icons.expand_more),
+                    ],
                   ),
-                ),
-                if (_sevrageAtteint)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Sevrage atteint',
-                      style: TextStyle(fontSize: 12, color: Colors.green),
-                    ),
+                  const SizedBox(height: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.medicament.classe,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Dosage de base : ${widget.medicament.doseInitiale} '
+                        '${widget.medicament.unite}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Type de médicament et dosage de base disposés en colonne.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  medicament.classe,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Dosage de base : ${medicament.doseInitiale} ${medicament.unite}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: (_pourcentageRestant / 100).clamp(0, 1),
-                    color: AppColors.primaryColor,
-                    backgroundColor: AppColors.primaryColor.withValues(
-                      alpha: 0.15,
-                    ),
-                    minHeight: 8,
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: (_pourcentageRestant / 100).clamp(0, 1),
+                          color: AppColors.primaryColor,
+                          backgroundColor: AppColors.primaryColor.withValues(
+                            alpha: 0.15,
+                          ),
+                          minHeight: 8,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_pourcentageRestant.clamp(0, 100).toStringAsFixed(0)}%',
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_pourcentageRestant.clamp(0, 100).toStringAsFixed(0)}%',
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (etapes.isEmpty)
-              const Text(
-                'Aucun plan généré.',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              )
-            else
-              _buildTableauPaliers(context),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: () => _ouvrirFormulaireGeneration(context),
-                icon: const Icon(Icons.auto_graph),
-                label: Text(
-                  etapes.isEmpty ? 'Générer un plan' : 'Régénérer le plan',
-                ),
+                  if (!aUnPlan) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _ouvrirFormulaireGeneration(context),
+                        icon: const Icon(Icons.auto_graph),
+                        label: const Text('Générer un plan'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          if (aUnPlan)
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 200),
+              crossFadeState: _deplie
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
+              firstChild: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _buildTableauPaliers(context),
+              ),
+              secondChild: const SizedBox.shrink(),
+            ),
+        ],
       ),
     );
+  }
+
+  Future<void> _confirmerSuppression(BuildContext context) async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer ce plan de sevrage ?'),
+        content: const Text(
+          'Tous les paliers de ce médicament, y compris ceux déjà '
+          'atteints, seront définitivement effacés.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirme == true) {
+      widget.onSupprimerPlan();
+      setState(() => _deplie = false);
+    }
   }
 
   Widget _buildTableauPaliers(BuildContext context) {
@@ -247,7 +322,6 @@ class _PlanCard extends StatelessWidget {
         0: FlexColumnWidth(2),
         1: FlexColumnWidth(2),
         2: FlexColumnWidth(2),
-        3: FixedColumnWidth(40),
       },
       border: TableBorder(
         horizontalInside: BorderSide(color: Colors.grey.shade300),
@@ -259,14 +333,13 @@ class _PlanCard extends StatelessWidget {
             _CelluleEntete('Date'),
             _CelluleEntete('Dose'),
             _CelluleEntete('% dose init.'),
-            SizedBox(),
           ],
         ),
-        for (final etape in etapes)
+        for (final etape in widget.etapes)
           TableRow(
             decoration: etape == etapeActuelle
                 ? BoxDecoration(
-                    color: AppColors.primaryColor.withValues(alpha: 0.08),
+                    color: AppColors.primaryColor.withValues(alpha: 0.1),
                   )
                 : null,
             children: [
@@ -276,22 +349,16 @@ class _PlanCard extends StatelessWidget {
                     etape.date.isBefore(maintenant) && etape != etapeActuelle,
               ),
               _Cellule(
-                '${etape.dose} ${medicament.unite}',
+                '${etape.dose} ${widget.medicament.unite}',
                 attenue:
                     etape.date.isBefore(maintenant) && etape != etapeActuelle,
               ),
               _Cellule(
-                medicament.doseInitiale == 0
+                widget.medicament.doseInitiale == 0
                     ? '—'
-                    : '${((etape.dose / medicament.doseInitiale) * 100).toStringAsFixed(0)}%',
+                    : '${((etape.dose / widget.medicament.doseInitiale) * 100).toStringAsFixed(0)}%',
                 attenue:
                     etape.date.isBefore(maintenant) && etape != etapeActuelle,
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => onSupprimerEtape(etape),
               ),
             ],
           ),
@@ -301,44 +368,15 @@ class _PlanCard extends StatelessWidget {
 
   String _formatDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/'
-      '${date.month.toString().padLeft(2, '0')}/'
-      '${date.year}';
+      '${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   Future<void> _ouvrirFormulaireGeneration(BuildContext context) async {
-    if (etapes.isNotEmpty) {
-      final confirme = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Remplacer le plan existant ?'),
-          content: const Text(
-            'Générer un nouveau plan supprimera tous les paliers '
-            'actuellement enregistrés pour ce médicament, y compris '
-            'l\'historique des paliers déjà passés.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remplacer'),
-            ),
-          ],
-        ),
-      );
-      if (confirme != true) return;
-    }
-
-    if (!context.mounted) return;
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (context) => _FormulaireGenerationSheet(
-        medicament: medicament,
-        doseActuelleSuggeree: _doseActuellePlan,
-        onValider: onGenererPlan,
+        medicament: widget.medicament,
+        onValider: widget.onGenererPlan,
       ),
     );
   }
@@ -383,9 +421,8 @@ class _Cellule extends StatelessWidget {
 
 class _FormulaireGenerationSheet extends StatefulWidget {
   final Medicament medicament;
-  final double doseActuelleSuggeree;
   final void Function(
-    double doseDepart,
+    double doseInitiale,
     double pourcentage,
     int delaiJours,
     DateTime dateDebut,
@@ -394,7 +431,6 @@ class _FormulaireGenerationSheet extends StatefulWidget {
 
   const _FormulaireGenerationSheet({
     required this.medicament,
-    required this.doseActuelleSuggeree,
     required this.onValider,
   });
 
@@ -406,22 +442,12 @@ class _FormulaireGenerationSheet extends StatefulWidget {
 class _FormulaireGenerationSheetState
     extends State<_FormulaireGenerationSheet> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _doseDepartController;
   final _pourcentageController = TextEditingController(text: '10');
   final _delaiController = TextEditingController(text: '14');
   DateTime _dateDebut = DateTime.now();
 
   @override
-  void initState() {
-    super.initState();
-    _doseDepartController = TextEditingController(
-      text: widget.doseActuelleSuggeree.toString(),
-    );
-  }
-
-  @override
   void dispose() {
-    _doseDepartController.dispose();
     _pourcentageController.dispose();
     _delaiController.dispose();
     super.dispose();
@@ -434,16 +460,13 @@ class _FormulaireGenerationSheetState
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (date != null) {
-      setState(() => _dateDebut = date);
-    }
+    if (date != null) setState(() => _dateDebut = date);
   }
 
   void _valider() {
     if (!_formKey.currentState!.validate()) return;
-
     widget.onValider(
-      double.parse(_doseDepartController.text.trim()),
+      widget.medicament.doseInitiale,
       double.parse(_pourcentageController.text.trim()),
       int.parse(_delaiController.text.trim()),
       _dateDebut,
@@ -453,101 +476,110 @@ class _FormulaireGenerationSheetState
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Générer le plan — ${widget.medicament.nom}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _doseDepartController,
-              decoration: InputDecoration(
-                labelText: 'Dose de départ (${widget.medicament.unite})',
-                border: const OutlineInputBorder(),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              validator: _validerNombrePositif,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _pourcentageController,
-              decoration: const InputDecoration(
-                labelText: 'Réduction par palier (%)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              validator: (value) {
-                final erreur = _validerNombrePositif(value);
-                if (erreur != null) return erreur;
-                final pct = double.parse(value!.trim());
-                if (pct >= 100) return 'Doit être < 100';
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _delaiController,
-              decoration: const InputDecoration(
-                labelText: 'Délai entre paliers (jours)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty)
-                  return 'Champ requis';
-                final parsed = int.tryParse(value.trim());
-                if (parsed == null || parsed <= 0)
-                  return 'Entier positif requis';
-                return null;
-              },
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Date de départ : ${_dateDebut.day.toString().padLeft(2, '0')}/'
-                '${_dateDebut.month.toString().padLeft(2, '0')}/'
-                '${_dateDebut.year}',
-              ),
-              trailing: const Icon(Icons.calendar_today_outlined),
-              onTap: _choisirDate,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _valider,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Générer le plan'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    final pourcentage = double.tryParse(_pourcentageController.text) ?? 0;
+    final nombrePaliers = pourcentage > 0 ? (100 / pourcentage).ceil() : 0;
+    final delai = int.tryParse(_delaiController.text) ?? 0;
+    final dureeJours = nombrePaliers * delai;
 
-  String? _validerNombrePositif(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Champ requis';
-    final parsed = double.tryParse(value.trim());
-    if (parsed == null) return 'Nombre invalide';
-    if (parsed <= 0) return 'Doit être positif';
-    return null;
+    return StatefulBuilder(
+      builder: (context, setSheetState) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Générer le plan — ${widget.medicament.nom}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Dose de départ : ${widget.medicament.doseInitiale} '
+                  '${widget.medicament.unite}',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _pourcentageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Réduction par palier (% de la dose initiale)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (_) => setSheetState(() {}),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty)
+                      return 'Champ requis';
+                    final pct = double.tryParse(value.trim());
+                    if (pct == null) return 'Nombre invalide';
+                    if (pct <= 0 || pct > 100)
+                      return 'Doit être entre 0 et 100';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _delaiController,
+                  decoration: const InputDecoration(
+                    labelText: 'Délai entre paliers (jours)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setSheetState(() {}),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty)
+                      return 'Champ requis';
+                    final parsed = int.tryParse(value.trim());
+                    if (parsed == null || parsed <= 0)
+                      return 'Entier positif requis';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Date de départ : ${_dateDebut.day.toString().padLeft(2, '0')}/'
+                    '${_dateDebut.month.toString().padLeft(2, '0')}/${_dateDebut.year}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: _choisirDate,
+                ),
+                if (nombrePaliers > 0 && delai > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '≈ $nombrePaliers palier(s), sevrage complet dans '
+                    '$dureeJours jours (${(dureeJours / 30).toStringAsFixed(1)} mois).',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: _valider,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Générer le plan'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

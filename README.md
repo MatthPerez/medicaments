@@ -1,4 +1,4 @@
-# my_meds
+# medico
 
 Suivi de mes traitements médicamenteux.
 

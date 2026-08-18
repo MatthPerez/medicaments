@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:my_meds/constants/colors.dart';
-import 'package:my_meds/data/medicaments_repository.dart';
+import 'package:medico/constants/colors.dart';
+import 'package:medico/data/medicaments_repository.dart';
 
 class MedicamentsPage extends StatefulWidget {
   const MedicamentsPage({super.key});
