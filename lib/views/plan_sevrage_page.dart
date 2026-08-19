@@ -54,27 +54,29 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
                   return _PlanCard(
                     medicament: medicament,
                     etapes: etapes,
-                    onGenererPlan: (pourcentage, delai, dateDebut, ratioSubstitution) {
-                      if (ratioSubstitution == null) {
-                        _paliersRepo.genererPlan(
-                          medicamentId: medicament.id,
-                          doseInitiale: medicament.doseInitiale,
-                          pourcentageReduction: pourcentage,
-                          delaiJours: delai,
-                          dateDebut: dateDebut,
-                        );
-                      } else {
-                        _paliersRepo.genererPlanSubstitution(
-                          medicamentId: medicament.id,
-                          doseInitiale: medicament.doseInitiale,
-                          pourcentageReduction: pourcentage,
-                          delaiJours: delai,
-                          dateDebut: dateDebut,
-                          ratioEquivalence: ratioSubstitution,
-                        );
-                      }
-                    },
-                    onSupprimerPlan: () => _paliersRepo.supprimerPlan(medicament.id),
+                    onGenererPlan:
+                        (pourcentage, delai, dateDebut, ratioSubstitution) {
+                          if (ratioSubstitution == null) {
+                            _paliersRepo.genererPlan(
+                              medicamentId: medicament.id,
+                              doseInitiale: medicament.doseInitiale,
+                              pourcentageReduction: pourcentage,
+                              delaiJours: delai,
+                              dateDebut: dateDebut,
+                            );
+                          } else {
+                            _paliersRepo.genererPlanSubstitution(
+                              medicamentId: medicament.id,
+                              doseInitiale: medicament.doseInitiale,
+                              pourcentageReduction: pourcentage,
+                              delaiJours: delai,
+                              dateDebut: dateDebut,
+                              ratioEquivalence: ratioSubstitution,
+                            );
+                          }
+                        },
+                    onSupprimerPlan: () =>
+                        _paliersRepo.supprimerPlan(medicament.id),
                   );
                 },
               ),
@@ -89,8 +91,11 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.timeline_outlined,
-                size: 64, color: AppColors.primaryColor.withValues(alpha: 0.4)),
+            Icon(
+              Icons.timeline_outlined,
+              size: 64,
+              color: AppColors.primaryColor.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: 16),
             const Text(
               'Ajoutez un médicament dans l\'onglet "Mes médicaments" '
@@ -112,8 +117,13 @@ class _PlanSevragePageState extends State<PlanSevragePage> {
 class _PlanCard extends StatefulWidget {
   final Medicament medicament;
   final List<EtapePalier> etapes;
-  final void Function(double pourcentage, int delaiJours, DateTime dateDebut,
-      double? ratioSubstitution) onGenererPlan;
+  final void Function(
+    double pourcentage,
+    int delaiJours,
+    DateTime dateDebut,
+    double? ratioSubstitution,
+  )
+  onGenererPlan;
   final VoidCallback onSupprimerPlan;
 
   const _PlanCard({
@@ -141,10 +151,12 @@ class _PlanCardState extends State<_PlanCard> {
   }
 
   bool get _sevrageTermine =>
-      widget.etapes.isNotEmpty && widget.etapes.last.date.isBefore(DateTime.now());
+      widget.etapes.isNotEmpty &&
+      widget.etapes.last.date.isBefore(DateTime.now());
 
   bool get _estSubstitution =>
-      widget.etapes.isNotEmpty && widget.etapes.any((e) => e.doseSubstitution != null);
+      widget.etapes.isNotEmpty &&
+      widget.etapes.any((e) => e.doseSubstitution != null);
 
   double get _doseActuellePlan =>
       _etapeActuelle?.dose ?? widget.medicament.doseActuelle;
@@ -158,8 +170,8 @@ class _PlanCardState extends State<_PlanCard> {
     final aUnPlan = widget.etapes.isNotEmpty;
     final couleurFond = aUnPlan
         ? (_sevrageTermine
-            ? Colors.green.withValues(alpha: 0.08)
-            : Colors.white)
+              ? Colors.green.withValues(alpha: 0.08)
+              : Colors.white)
         : null;
 
     return Card(
@@ -181,12 +193,18 @@ class _PlanCardState extends State<_PlanCard> {
                       Expanded(
                         child: Text(
                           widget.medicament.nom,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       if (aUnPlan)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _sevrageTermine
                                 ? Colors.green.shade100
@@ -209,11 +227,15 @@ class _PlanCardState extends State<_PlanCard> {
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Icon(Icons.image_outlined),
                           tooltip: 'Exporter en image',
-                          onPressed: _exportEnCours ? null : () => _exporterImage(context),
+                          onPressed: _exportEnCours
+                              ? null
+                              : () => _exporterImage(context),
                         ),
                       if (aUnPlan)
                         IconButton(
@@ -229,8 +251,13 @@ class _PlanCardState extends State<_PlanCard> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.medicament.classe,
-                          style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                      Text(
+                        widget.medicament.classe,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         'Dosage de base : ${widget.medicament.doseInitiale} '
@@ -260,15 +287,20 @@ class _PlanCardState extends State<_PlanCard> {
                         child: LinearProgressIndicator(
                           value: (_pourcentageRestant / 100).clamp(0, 1),
                           color: AppColors.primaryColor,
-                          backgroundColor: AppColors.primaryColor.withValues(alpha: 0.15),
+                          backgroundColor: AppColors.primaryColor.withValues(
+                            alpha: 0.15,
+                          ),
                           minHeight: 8,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text('${_pourcentageRestant.clamp(0, 100).toStringAsFixed(0)}%'),
+                      Text(
+                        '${_pourcentageRestant.clamp(0, 100).toStringAsFixed(0)}%',
+                      ),
                     ],
                   ),
-                  if (_estSubstitution && _etapeActuelle?.doseSubstitution != null) ...[
+                  if (_estSubstitution &&
+                      _etapeActuelle?.doseSubstitution != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       '${widget.medicament.moleculeSubstitution} actuel : '
@@ -294,7 +326,9 @@ class _PlanCardState extends State<_PlanCard> {
           if (aUnPlan)
             AnimatedCrossFade(
               duration: const Duration(milliseconds: 200),
-              crossFadeState: _deplie ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              crossFadeState: _deplie
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
               firstChild: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: _buildTableauPaliers(context),
@@ -316,7 +350,10 @@ class _PlanCardState extends State<_PlanCard> {
           'atteints, seront définitivement effacés.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
@@ -347,7 +384,9 @@ class _PlanCardState extends State<_PlanCard> {
               1: FlexColumnWidth(2),
               2: FlexColumnWidth(2),
             },
-      border: TableBorder(horizontalInside: BorderSide(color: Colors.grey.shade300)),
+      border: TableBorder(
+        horizontalInside: BorderSide(color: Colors.grey.shade300),
+      ),
       children: [
         TableRow(
           decoration: BoxDecoration(color: Colors.grey.shade100),
@@ -361,25 +400,35 @@ class _PlanCardState extends State<_PlanCard> {
         for (final etape in widget.etapes)
           TableRow(
             decoration: etape == etapeActuelle
-                ? BoxDecoration(color: AppColors.primaryColor.withValues(alpha: 0.1))
+                ? BoxDecoration(
+                    color: AppColors.primaryColor.withValues(alpha: 0.1),
+                  )
                 : null,
             children: [
-              _Cellule(_formatDate(etape.date),
-                  attenue: etape.date.isBefore(maintenant) && etape != etapeActuelle),
-              _Cellule('${etape.dose} ${widget.medicament.unite}',
-                  attenue: etape.date.isBefore(maintenant) && etape != etapeActuelle),
+              _Cellule(
+                _formatDate(etape.date),
+                attenue:
+                    etape.date.isBefore(maintenant) && etape != etapeActuelle,
+              ),
+              _Cellule(
+                '${etape.dose} ${widget.medicament.unite}',
+                attenue:
+                    etape.date.isBefore(maintenant) && etape != etapeActuelle,
+              ),
               _Cellule(
                 widget.medicament.doseInitiale == 0
                     ? '—'
                     : '${((etape.dose / widget.medicament.doseInitiale) * 100).toStringAsFixed(0)}%',
-                attenue: etape.date.isBefore(maintenant) && etape != etapeActuelle,
+                attenue:
+                    etape.date.isBefore(maintenant) && etape != etapeActuelle,
               ),
               if (_estSubstitution)
                 _Cellule(
                   etape.doseSubstitution != null
                       ? '${etape.doseSubstitution} ${widget.medicament.unite}'
                       : '—',
-                  attenue: etape.date.isBefore(maintenant) && etape != etapeActuelle,
+                  attenue:
+                      etape.date.isBefore(maintenant) && etape != etapeActuelle,
                 ),
             ],
           ),
@@ -389,7 +438,8 @@ class _PlanCardState extends State<_PlanCard> {
 
   String _formatDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/'
-      '${date.month.toString().padLeft(2, '0')}/${date.year}';
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year.toString().substring(2)}';
 
   Future<void> _ouvrirFormulaireGeneration(BuildContext context) async {
     await showModalBottomSheet<void>(
@@ -440,14 +490,17 @@ class _PlanCardState extends State<_PlanCard> {
       await WidgetsBinding.instance.endOfFrame;
       await Future.delayed(const Duration(milliseconds: 50));
 
-      final boundary = boundaryKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
+      final boundary =
+          boundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary == null) {
         throw Exception('Rendu introuvable pour la capture.');
       }
 
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
       entry.remove();
 
       if (byteData == null) throw Exception('Échec de conversion en PNG.');
@@ -467,7 +520,8 @@ class _PlanCardState extends State<_PlanCard> {
 
       await Gal.putImageBytes(
         bytes,
-        name: 'plan_sevrage_${widget.medicament.nom}_${DateTime.now().millisecondsSinceEpoch}',
+        name:
+            'plan_sevrage_${widget.medicament.nom}_${DateTime.now().millisecondsSinceEpoch}',
       );
 
       if (!context.mounted) return;
@@ -477,9 +531,9 @@ class _PlanCardState extends State<_PlanCard> {
     } catch (e) {
       if (entry.mounted) entry.remove();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Échec de l\'export : $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Échec de l\'export : $e')));
     } finally {
       if (mounted) setState(() => _exportEnCours = false);
     }
@@ -494,7 +548,10 @@ class _CelluleEntete extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Text(texte, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+      child: Text(
+        texte,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
     );
   }
 }
@@ -508,7 +565,10 @@ class _Cellule extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Text(texte, style: TextStyle(fontSize: 13, color: attenue ? Colors.grey : null)),
+      child: Text(
+        texte,
+        style: TextStyle(fontSize: 13, color: attenue ? Colors.grey : null),
+      ),
     );
   }
 }
@@ -562,9 +622,14 @@ class _ContenuExportImage extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: sevrageTermine ? Colors.green.shade100 : Colors.orange.shade100,
+                    color: sevrageTermine
+                        ? Colors.green.shade100
+                        : Colors.orange.shade100,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -572,7 +637,9 @@ class _ContenuExportImage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: sevrageTermine ? Colors.green.shade800 : Colors.orange.shade800,
+                      color: sevrageTermine
+                          ? Colors.green.shade800
+                          : Colors.orange.shade800,
                     ),
                   ),
                 ),
@@ -580,7 +647,10 @@ class _ContenuExportImage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text(medicament.classe, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(
+            medicament.classe,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          ),
           const SizedBox(height: 4),
           Text(
             'Dose de départ : ${medicament.doseInitiale} ${medicament.unite}',
@@ -590,13 +660,21 @@ class _ContenuExportImage extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Substitution vers : ${medicament.moleculeSubstitution}',
-              style: const TextStyle(fontSize: 13, color: Colors.blue, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.blue,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
           const SizedBox(height: 20),
           Table(
             columnWidths: estSubstitution
-                ? const {0: FlexColumnWidth(2), 1: FlexColumnWidth(2), 2: FlexColumnWidth(2)}
+                ? const {
+                    0: FlexColumnWidth(2),
+                    1: FlexColumnWidth(2),
+                    2: FlexColumnWidth(2),
+                  }
                 : const {0: FlexColumnWidth(2), 1: FlexColumnWidth(2)},
             border: TableBorder(
               horizontalInside: BorderSide(color: Colors.grey.shade300),
@@ -609,7 +687,9 @@ class _ContenuExportImage extends StatelessWidget {
                   const _CelluleExportEntete('Date'),
                   _CelluleExportEntete('Dose ${medicament.unite}'),
                   if (estSubstitution)
-                    _CelluleExportEntete('${medicament.moleculeSubstitution ?? "Subst."}'),
+                    _CelluleExportEntete(
+                      '${medicament.moleculeSubstitution ?? "Subst."}',
+                    ),
                 ],
               ),
               for (final etape in etapes)
@@ -619,7 +699,10 @@ class _ContenuExportImage extends StatelessWidget {
                     _CelluleExport('${etape.dose}'),
                     if (estSubstitution)
                       _CelluleExport(
-                          etape.doseSubstitution != null ? '${etape.doseSubstitution}' : '—'),
+                        etape.doseSubstitution != null
+                            ? '${etape.doseSubstitution}'
+                            : '—',
+                      ),
                   ],
                 ),
             ],
@@ -632,7 +715,11 @@ class _ContenuExportImage extends StatelessWidget {
           const SizedBox(height: 4),
           const Text(
             'À valider avec un médecin ou pharmacien.',
-            style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
       ),
@@ -652,7 +739,10 @@ class _CelluleExportEntete extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Text(texte, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+      child: Text(
+        texte,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+      ),
     );
   }
 }
@@ -676,8 +766,13 @@ class _CelluleExport extends StatelessWidget {
 
 class _FormulaireGenerationSheet extends StatefulWidget {
   final Medicament medicament;
-  final void Function(double pourcentage, int delaiJours, DateTime dateDebut,
-      double? ratioSubstitution) onValider;
+  final void Function(
+    double pourcentage,
+    int delaiJours,
+    DateTime dateDebut,
+    double? ratioSubstitution,
+  )
+  onValider;
 
   const _FormulaireGenerationSheet({
     required this.medicament,
@@ -685,10 +780,12 @@ class _FormulaireGenerationSheet extends StatefulWidget {
   });
 
   @override
-  State<_FormulaireGenerationSheet> createState() => _FormulaireGenerationSheetState();
+  State<_FormulaireGenerationSheet> createState() =>
+      _FormulaireGenerationSheetState();
 }
 
-class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> {
+class _FormulaireGenerationSheetState
+    extends State<_FormulaireGenerationSheet> {
   final _formKey = GlobalKey<FormState>();
   final _pourcentageController = TextEditingController(text: '10');
   final _delaiController = TextEditingController(text: '14');
@@ -731,7 +828,9 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
 
   @override
   Widget build(BuildContext context) {
-    final repere = RepereAshton.pour(widget.medicament.ancienneteTraitementMois);
+    final repere = RepereAshton.pour(
+      widget.medicament.ancienneteTraitementMois,
+    );
 
     return StatefulBuilder(
       builder: (context, setSheetState) {
@@ -751,7 +850,10 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                 children: [
                   Text(
                     'Générer le plan — ${widget.medicament.nom}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -770,13 +872,22 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Repères informatifs (manuel Ashton, résumé public)',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                        const Text(
+                          'Repères informatifs (manuel Ashton, résumé public)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 6),
-                        Text('• Réduction habituelle : ${repere.pourcentageConseille}',
-                            style: const TextStyle(fontSize: 12)),
-                        Text('• Délai habituel entre paliers : ${repere.delaiConseille}',
-                            style: const TextStyle(fontSize: 12)),
+                        Text(
+                          '• Réduction habituelle : ${repere.pourcentageConseille}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        Text(
+                          '• Délai habituel entre paliers : ${repere.delaiConseille}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         if (repere.dureeGlobaleEstimee != null)
                           Text(
                             '• Durée totale habituelle pour cette ancienneté de traitement : '
@@ -793,13 +904,17 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                       labelText: 'Réduction par palier (% de la dose courante)',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     onChanged: (_) => setSheetState(() {}),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) return 'Champ requis';
+                      if (value == null || value.trim().isEmpty)
+                        return 'Champ requis';
                       final pct = double.tryParse(value.trim());
                       if (pct == null) return 'Nombre invalide';
-                      if (pct <= 0 || pct >= 100) return 'Doit être entre 0 et 100';
+                      if (pct <= 0 || pct >= 100)
+                        return 'Doit être entre 0 et 100';
                       return null;
                     },
                   ),
@@ -813,9 +928,11 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setSheetState(() {}),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) return 'Champ requis';
+                      if (value == null || value.trim().isEmpty)
+                        return 'Champ requis';
                       final parsed = int.tryParse(value.trim());
-                      if (parsed == null || parsed <= 0) return 'Entier positif requis';
+                      if (parsed == null || parsed <= 0)
+                        return 'Entier positif requis';
                       return null;
                     },
                   ),
@@ -834,19 +951,24 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Basculer vers un médicament de substitution'),
+                    title: const Text(
+                      'Basculer vers un médicament de substitution',
+                    ),
                     subtitle: Text(
                       _substitutionDisponible
                           ? 'Vers : ${widget.medicament.moleculeSubstitution}'
                           : 'Renseignez d\'abord une molécule de substitution dans la fiche médicament.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: _substitutionDisponible ? Colors.grey : Colors.red,
+                        color: _substitutionDisponible
+                            ? Colors.grey
+                            : Colors.red,
                       ),
                     ),
                     value: _modeSubstitution,
                     onChanged: _substitutionDisponible
-                        ? (value) => setSheetState(() => _modeSubstitution = value)
+                        ? (value) =>
+                              setSheetState(() => _modeSubstitution = value)
                         : null,
                   ),
                   if (_modeSubstitution) ...[
@@ -869,17 +991,22 @@ class _FormulaireGenerationSheetState extends State<_FormulaireGenerationSheet> 
                     TextFormField(
                       controller: _ratioController,
                       decoration: InputDecoration(
-                        labelText: 'Ratio d\'équivalence (mg de '
+                        labelText:
+                            'Ratio d\'équivalence (mg de '
                             '${widget.medicament.moleculeSubstitution} par mg de '
                             '${widget.medicament.nom})',
                         border: const OutlineInputBorder(),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       validator: (value) {
                         if (!_modeSubstitution) return null;
-                        if (value == null || value.trim().isEmpty) return 'Champ requis';
+                        if (value == null || value.trim().isEmpty)
+                          return 'Champ requis';
                         final ratio = double.tryParse(value.trim());
-                        if (ratio == null || ratio <= 0) return 'Nombre positif requis';
+                        if (ratio == null || ratio <= 0)
+                          return 'Nombre positif requis';
                         return null;
                       },
                     ),

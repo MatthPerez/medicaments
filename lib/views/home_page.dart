@@ -15,27 +15,37 @@ class _HomePageState extends State<HomePage>
   late final AnimationController _controller;
 
   static const _tiles = [
-    _TileData(
-      label: 'Mes médicaments',
-      imagePath: 'lib/assets/images/medicaments.png',
-      route: '/medicaments',
-    ),
-    _TileData(
-      label: 'Plan de sevrage',
-      imagePath: 'lib/assets/images/plan.png',
-      route: '/plan',
-    ),
-    _TileData(
-      label: 'Historique',
-      imagePath: 'lib/assets/images/historique.png',
-      route: '/historique',
-    ),
-    _TileData(
-      label: 'Paramètres',
-      imagePath: 'lib/assets/images/parametres.png',
-      route: '/parametres',
-    ),
-  ];
+  _TileData(
+    label: 'Mes médicaments',
+    imagePath: 'lib/assets/images/medicaments.png',
+    route: '/medicaments',
+  ),
+  _TileData(
+    label: 'Plan de sevrage',
+    imagePath: 'lib/assets/images/plan.png',
+    route: '/plan',
+  ),
+  _TileData(
+    label: 'Journal',
+    imagePath: 'lib/assets/images/journal.png',
+    route: '/journal',
+  ),
+  _TileData(
+    label: 'Historique',
+    imagePath: 'lib/assets/images/historique.png',
+    route: '/historique',
+  ),
+  _TileData(
+    label: 'Contacts médicaux',
+    imagePath: 'lib/assets/images/contacts.png',
+    route: '/contacts',
+  ),
+  _TileData(
+    label: 'Paramètres',
+    imagePath: 'lib/assets/images/parametres.png',
+    route: '/parametres',
+  ),
+];
 
   @override
   void initState() {
@@ -50,9 +60,6 @@ class _HomePageState extends State<HomePage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // S'abonne au RouteObserver déclaré dans main.dart pour détecter
-    // un retour sur cette page (ex: Navigator.pop depuis /medicaments)
-    // sans que HomePage ne soit démontée puis remontée.
     final route = ModalRoute.of(context);
     if (route is PageRoute) {
       routeObserver.subscribe(this, route);
@@ -66,9 +73,6 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
-  /// Appelé par le RouteObserver quand une route au-dessus de celle-ci
-  /// est dépilée et qu'on revient sur HomePage (ex: retour depuis
-  /// /medicaments). Relance l'animation depuis le début.
   @override
   void didPopNext() {
     _controller
@@ -79,81 +83,77 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // Image de fond, plaquée tout en bas, sans aucun padding.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Image.asset(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Zone haute : titre + tuiles. Occupe tout l'espace restant
+            // UNE FOIS que l'image du bas (non-flexible) a déterminé sa
+            // propre hauteur — donc toujours au-dessus, jamais chevauchée.
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'MON SUIVI MÉDICAL',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.robotoMono(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                          color: AppColors.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 1,
+                        children: List.generate(_tiles.length, (index) {
+                          final start = index * 0.1;
+                          final end = (start + 0.6).clamp(0.0, 1.0);
+                          final animation = CurvedAnimation(
+                            parent: _controller,
+                            curve: Interval(
+                              start,
+                              end,
+                              curve: Curves.easeOutBack,
+                            ),
+                          );
+
+                          return _MenuTile(
+                            data: _tiles[index],
+                            animation: animation,
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Image de fond : dernier enfant du Column, donc toujours
+            // après (visuellement en dessous de) la zone des tuiles.
+            // Largeur pleine écran, hauteur calculée automatiquement
+            // pour conserver le ratio d'origine — aucun recadrage.
+            Image.asset(
               'lib/assets/images/medicaments_bg.png',
+              width: double.infinity,
               fit: BoxFit.fitWidth,
-              alignment: Alignment.bottomCenter,
               errorBuilder: (context, error, stackTrace) =>
                   const SizedBox.shrink(),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 24,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Mon suivi médical',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.robotoMono(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                              color: AppColors.primaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            children: List.generate(_tiles.length, (index) {
-                              final start = index * 0.15;
-                              final end = (start + 0.6).clamp(0.0, 1.0);
-                              final animation = CurvedAnimation(
-                                parent: _controller,
-                                curve: Interval(
-                                  start,
-                                  end,
-                                  curve: Curves.easeOutBack,
-                                ),
-                              );
-
-                              return _MenuTile(
-                                data: _tiles[index],
-                                animation: animation,
-                              );
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const Expanded(flex: 1, child: SizedBox.shrink()),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -177,8 +177,7 @@ class _MenuTile extends StatelessWidget {
 
   const _MenuTile({required this.data, required this.animation});
 
-  static const double _tileSize = 140;
-  static const double _imageSize = 64;
+  static const double _imageSize = 56;
 
   @override
   Widget build(BuildContext context) {
@@ -197,8 +196,6 @@ class _MenuTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.pushNamed(context, data.route),
         child: Container(
-          width: _tileSize,
-          height: _tileSize,
           decoration: BoxDecoration(
             color: AppColors.primaryColor.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
@@ -222,11 +219,14 @@ class _MenuTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 data.label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
