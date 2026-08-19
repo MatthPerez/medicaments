@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:medico/constants/colors.dart';
+import 'package:medico/data/medicaments_repository.dart';
+import 'package:medico/data/paliers_repository.dart';
 
 import 'package:medico/views/home_page.dart';
 import 'package:medico/views/medicaments_page.dart';
@@ -11,18 +13,21 @@ import 'package:medico/views/parametres_page.dart';
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
 
-void main() {
-  runApp(const MyMedsApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MedicamentsRepository.instance.charger();
+  await PaliersRepository.instance.charger();
+  runApp(const DailyApp());
 }
 
-class MyMedsApp extends StatelessWidget {
-  const MyMedsApp({super.key});
+class DailyApp extends StatelessWidget {
+  const DailyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'medico',
+      title: 'Mon suivi médical',
       theme: ThemeData(
         primaryColor: AppColors.primaryColor,
         useMaterial3: true,
@@ -31,11 +36,11 @@ class MyMedsApp extends StatelessWidget {
       initialRoute: '/',
       navigatorObservers: [routeObserver],
       routes: {
-        '/': (BuildContext context) => const HomePage(),
-        '/medicaments': (BuildContext context) => const MedicamentsPage(),
-        '/plan': (BuildContext context) => const PlanSevragePage(),
-        '/historique': (BuildContext context) => const HistoriquePage(),
-        '/parametres': (BuildContext context) => const ParametresPage(),
+        '/': (context) => const HomePage(),
+        '/medicaments': (context) => const MedicamentsPage(),
+        '/plan': (context) => const PlanSevragePage(),
+        '/historique': (context) => const HistoriquePage(),
+        '/parametres': (context) => const ParametresPage(),
       },
     );
   }

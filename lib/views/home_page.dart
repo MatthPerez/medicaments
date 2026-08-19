@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:medico/constants/colors.dart';
+import 'package:medico/main.dart' show routeObserver;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -9,7 +11,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RouteAware {
   late final AnimationController _controller;
 
   static const _tiles = [
@@ -46,34 +48,112 @@ class _HomePageState extends State<HomePage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // S'abonne au RouteObserver déclaré dans main.dart pour détecter
+    // un retour sur cette page (ex: Navigator.pop depuis /medicaments)
+    // sans que HomePage ne soit démontée puis remontée.
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Appelé par le RouteObserver quand une route au-dessus de celle-ci
+  /// est dépilée et qu'on revient sur HomePage (ex: retour depuis
+  /// /medicaments). Relance l'animation depuis le début.
+  @override
+  void didPopNext() {
+    _controller
+      ..reset()
+      ..forward();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mon suivi médical'), centerTitle: true),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            children: List.generate(_tiles.length, (index) {
-              final start = index * 0.15;
-              final end = (start + 0.6).clamp(0.0, 1.0);
-              final animation = CurvedAnimation(
-                parent: _controller,
-                curve: Interval(start, end, curve: Curves.easeOutBack),
-              );
-
-              return _MenuTile(data: _tiles[index], animation: animation);
-            }),
+      body: Stack(
+        children: [
+          // Image de fond, plaquée tout en bas, sans aucun padding.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Image.asset(
+              'lib/assets/images/medicaments_bg.png',
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.bottomCenter,
+              errorBuilder: (context, error, stackTrace) =>
+                  const SizedBox.shrink(),
+            ),
           ),
-        ),
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 24,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Mon suivi médical',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.robotoMono(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                              color: AppColors.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            children: List.generate(_tiles.length, (index) {
+                              final start = index * 0.15;
+                              final end = (start + 0.6).clamp(0.0, 1.0);
+                              final animation = CurvedAnimation(
+                                parent: _controller,
+                                curve: Interval(
+                                  start,
+                                  end,
+                                  curve: Curves.easeOutBack,
+                                ),
+                              );
+
+                              return _MenuTile(
+                                data: _tiles[index],
+                                animation: animation,
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const Expanded(flex: 1, child: SizedBox.shrink()),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

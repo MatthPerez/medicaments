@@ -19,9 +19,42 @@ class EtapePalier {
   );
 }
 
+/// Repères informatifs tirés du manuel Ashton (résumé public), fournis
+/// à titre indicatif uniquement — l'utilisateur reste libre de saisir
+/// d'autres valeurs. Aucune de ces bornes n'est appliquée automatiquement.
+class RepereAshton {
+  final String pourcentageConseille; // ex: "5 à 10 %"
+  final String delaiConseille; // ex: "1 à 3 semaines"
+  final String? dureeGlobaleEstimee; // ex: "3 à 9 mois", selon ancienneté
+
+  const RepereAshton({
+    required this.pourcentageConseille,
+    required this.delaiConseille,
+    this.dureeGlobaleEstimee,
+  });
+
+  /// [ancienneteMois] : ancienneté du traitement en mois, si connue.
+  static RepereAshton pour(int? ancienneteMois) {
+    String? duree;
+    if (ancienneteMois != null) {
+      if (ancienneteMois < 12) {
+        duree = '4 à 12 semaines';
+      } else if (ancienneteMois <= 60) {
+        duree = '3 à 9 mois';
+      } else {
+        duree = '6 à 18 mois';
+      }
+    }
+    return RepereAshton(
+      pourcentageConseille: '5 à 10 %',
+      delaiConseille: '1 à 3 semaines (7 à 21 jours)',
+      dureeGlobaleEstimee: duree,
+    );
+  }
+}
+
 /// Source unique de vérité pour les plans de sevrage, indexés par id
-/// de médicament. Persisté via shared_preferences (JSON), chargé une
-/// fois au démarrage via `charger()`.
+/// de médicament. Persisté via shared_preferences.
 class PaliersRepository extends ChangeNotifier {
   PaliersRepository._();
   static final PaliersRepository instance = PaliersRepository._();
@@ -64,37 +97,62 @@ class PaliersRepository extends ChangeNotifier {
     await prefs.setString(_cle, jsonEncode(data));
   }
 
-  /// Génère un plan de décroissance à DATE DE FIN GARANTIE : chaque
-  /// pourcentage est appliqué à la dose INITIALE (pas à la dose
-  /// courante), donc la suite est arithmétique et non asymptotique.
-  /// Le dernier palier est toujours exactement 0.
+  /// Génère un plan de décroissance en pourcentage de la DOSE COURANTE
+  /// (logique Ashton), avec un seuil d'arrêt qui force le dernier
+  /// palier à 0 pour garantir une fin — sans ce seuil, une réduction
+  /// en pourcentage de la dose courante ne mathématiquement jamais 0.
+  ///
+  /// [seuilArretPourcentDoseInitiale] : en dessous de ce pourcentage
+  /// de la dose INITIALE, le palier suivant est fixé à 0 au lieu de
+  /// continuer à réduire proportionnellement. Valeur par défaut : 5 %.
+  /// Ce seuil est un choix technique arbitraire — pas une valeur du
+  /// manuel Ashton, qui ne fixe pas de règle mathématique de fin.
   Future<void> genererPlan({
     required String medicamentId,
     required double doseInitiale,
     required double pourcentageReduction,
     required int delaiJours,
     required DateTime dateDebut,
+    double seuilArretPourcentDoseInitiale = 5.0,
   }) async {
-    assert(pourcentageReduction > 0 && pourcentageReduction <= 100);
+    assert(pourcentageReduction > 0 && pourcentageReduction < 100);
     assert(delaiJours > 0);
 
-    final pasDose = doseInitiale * (pourcentageReduction / 100);
-    final nombrePaliers = (doseInitiale / pasDose).ceil();
+    const maxEtapes = 200; // garde-fou contre une saisie aberrante
 
+    final seuilArret = doseInitiale * (seuilArretPourcentDoseInitiale / 100);
     final etapes = <EtapePalier>[];
-    for (int i = 1; i <= nombrePaliers; i++) {
-      final doseBrute = doseInitiale - (pasDose * i);
-      final dose = i == nombrePaliers
+    double doseCourante = doseInitiale;
+    int iterations = 0;
+
+    while (doseCourante > 0 && iterations < maxEtapes) {
+      final nouvelleDoseBrute = doseCourante * (1 - pourcentageReduction / 100);
+      final estDerniereEtape = nouvelleDoseBrute <= seuilArret;
+      final dose = estDerniereEtape
           ? 0.0
-          : double.parse(doseBrute.clamp(0, doseInitiale).toStringAsFixed(2));
+          : double.parse(nouvelleDoseBrute.toStringAsFixed(2));
+
       etapes.add(
         EtapePalier(
-          date: dateDebut.add(Duration(days: delaiJours * i)),
+          date: dateDebut.add(Duration(days: delaiJours * (iterations + 1))),
           dose: dose,
         ),
       );
+
+      doseCourante = dose;
+      iterations++;
+      if (estDerniereEtape) break;
     }
 
+    _paliersParMedicament[medicamentId] = etapes;
+    notifyListeners();
+    await _sauvegarder();
+  }
+
+  Future<void> remplacerPaliers(
+    String medicamentId,
+    List<EtapePalier> etapes,
+  ) async {
     _paliersParMedicament[medicamentId] = etapes;
     notifyListeners();
     await _sauvegarder();

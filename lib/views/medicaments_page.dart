@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:medico/constants/colors.dart';
 import 'package:medico/data/medicaments_repository.dart';
+import 'package:medico/data/medicaments_reference.dart';
 
 class MedicamentsPage extends StatefulWidget {
   const MedicamentsPage({super.key});
@@ -24,6 +25,9 @@ class _MedicamentsPageState extends State<MedicamentsPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _repository.addListener(_onRepositoryChanged);
+    if (!_repository.estCharge) {
+      _repository.charger();
+    }
   }
 
   @override
@@ -36,30 +40,27 @@ class _MedicamentsPageState extends State<MedicamentsPage>
   void _onRepositoryChanged() => setState(() {});
 
   void _ouvrirEdition(Medicament? medicament) {
-    setState(() {
-      _medicamentEnEdition = medicament;
-    });
+    setState(() => _medicamentEnEdition = medicament);
     _tabController.animateTo(1);
   }
 
   void _enregistrerMedicament(Medicament medicament) {
     _repository.ajouterOuMettreAJour(medicament);
-    setState(() {
-      _medicamentEnEdition = null;
-    });
+    setState(() => _medicamentEnEdition = null);
     _tabController.animateTo(0);
   }
 
-  void _supprimerMedicament(String id) {
-    _repository.supprimer(id);
-  }
+  void _supprimerMedicament(String id) => _repository.supprimer(id);
 
-  void _importerListe(List<Medicament> importes) {
-    _repository.remplacerTout(importes);
-  }
+  void _importerListe(List<Medicament> importes) =>
+      _repository.remplacerTout(importes);
 
   @override
   Widget build(BuildContext context) {
+    if (!_repository.estCharge) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final medicaments = _repository.medicaments;
 
     return Scaffold(
@@ -150,48 +151,97 @@ class _EnCoursTab extends StatelessWidget {
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            title: Text(
-              medicament.nom,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${medicament.classe} · Dose actuelle : '
-                '${medicament.doseActuelle} ${medicament.unite}',
-              ),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 48,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('${pourcentageRestant.toStringAsFixed(0)}%'),
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(
-                        value: pourcentageRestant / 100,
-                        color: AppColors.primaryColor,
-                        backgroundColor: AppColors.primaryColor.withValues(
-                          alpha: 0.15,
+                // Ligne 1 : nom + icônes (modifier / supprimer) + jauge
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        medicament.nom,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
                         ),
                       ),
-                    ],
+                    ),
+                    SizedBox(
+                      width: 44,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${pourcentageRestant.toStringAsFixed(0)}%',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          const SizedBox(height: 2),
+                          LinearProgressIndicator(
+                            value: pourcentageRestant / 100,
+                            color: AppColors.primaryColor,
+                            backgroundColor: AppColors.primaryColor.withValues(
+                              alpha: 0.15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Modifier',
+                      onPressed: () => onModifier(medicament),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Supprimer',
+                      onPressed: () => onSupprimer(medicament.id),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Ligne 2 : classe
+                Text(
+                  medicament.classe,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                // Ligne 3 : temps de traitement
+                Text(
+                  medicament.ancienneteTraitementMois != null
+                      ? 'Traitement depuis ${medicament.ancienneteTraitementMois} mois'
+                      : 'Ancienneté du traitement non renseignée',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: medicament.ancienneteTraitementMois != null
+                        ? null
+                        : Colors.grey.shade400,
+                    fontStyle: medicament.ancienneteTraitementMois != null
+                        ? FontStyle.normal
+                        : FontStyle.italic,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Modifier',
-                  onPressed: () => onModifier(medicament),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Supprimer',
-                  onPressed: () => onSupprimer(medicament.id),
+                const SizedBox(height: 4),
+                // Ligne 4 : substitution envisagée
+                Text(
+                  (medicament.moleculeSubstitution != null &&
+                          medicament.moleculeSubstitution!.isNotEmpty)
+                      ? 'Substitution envisagée : ${medicament.moleculeSubstitution}'
+                      : 'Aucune substitution envisagée',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color:
+                        (medicament.moleculeSubstitution != null &&
+                            medicament.moleculeSubstitution!.isNotEmpty)
+                        ? null
+                        : Colors.grey.shade400,
+                    fontStyle:
+                        (medicament.moleculeSubstitution != null &&
+                            medicament.moleculeSubstitution!.isNotEmpty)
+                        ? FontStyle.normal
+                        : FontStyle.italic,
+                  ),
                 ),
               ],
             ),
@@ -227,6 +277,8 @@ class _SaisieTabState extends State<_SaisieTab> {
   late final TextEditingController _doseInitialeController;
   late final TextEditingController _doseActuelleController;
   late final TextEditingController _uniteController;
+  late final TextEditingController _ancienneteController;
+  late final TextEditingController _substitutionController;
 
   @override
   void initState() {
@@ -241,6 +293,12 @@ class _SaisieTabState extends State<_SaisieTab> {
       text: m?.doseActuelle.toString() ?? '',
     );
     _uniteController = TextEditingController(text: m?.unite ?? 'mg');
+    _ancienneteController = TextEditingController(
+      text: m?.ancienneteTraitementMois?.toString() ?? '',
+    );
+    _substitutionController = TextEditingController(
+      text: m?.moleculeSubstitution ?? '',
+    );
   }
 
   @override
@@ -250,11 +308,16 @@ class _SaisieTabState extends State<_SaisieTab> {
     _doseInitialeController.dispose();
     _doseActuelleController.dispose();
     _uniteController.dispose();
+    _ancienneteController.dispose();
+    _substitutionController.dispose();
     super.dispose();
   }
 
   void _valider() {
     if (!_formKey.currentState!.validate()) return;
+
+    final anciennete = _ancienneteController.text.trim();
+    final substitution = _substitutionController.text.trim();
 
     final medicament = Medicament(
       id: widget.medicamentInitial?.id,
@@ -263,6 +326,10 @@ class _SaisieTabState extends State<_SaisieTab> {
       doseInitiale: double.parse(_doseInitialeController.text.trim()),
       doseActuelle: double.parse(_doseActuelleController.text.trim()),
       unite: _uniteController.text.trim(),
+      ancienneteTraitementMois: anciennete.isEmpty
+          ? null
+          : int.parse(anciennete),
+      moleculeSubstitution: substitution.isEmpty ? null : substitution,
     );
 
     widget.onEnregistrer(medicament);
@@ -286,13 +353,17 @@ class _SaisieTabState extends State<_SaisieTab> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nomController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Nom du médicament',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: 'Choisir dans la liste',
+                  onPressed: () => _ouvrirSelecteur(context),
+                ),
               ),
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Champ requis'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -301,9 +372,8 @@ class _SaisieTabState extends State<_SaisieTab> {
                 labelText: 'Classe (ex : Benzodiazépine, ISRS...)',
                 border: OutlineInputBorder(),
               ),
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Champ requis'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
             ),
             const SizedBox(height: 12),
             Row(
@@ -344,9 +414,53 @@ class _SaisieTabState extends State<_SaisieTab> {
                 labelText: 'Unité (mg, ml, gouttes...)',
                 border: OutlineInputBorder(),
               ),
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Champ requis'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              'Informations complémentaires (facultatif)',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Ces champs servent uniquement à afficher des repères '
+              'informatifs dans le plan de sevrage — ils ne déclenchent '
+              'aucun calcul automatique.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _ancienneteController,
+              decoration: const InputDecoration(
+                labelText: 'Ancienneté du traitement (en mois)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return null;
+                final parsed = int.tryParse(v.trim());
+                if (parsed == null || parsed < 0) {
+                  return 'Entier positif requis';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _substitutionController,
+              decoration: InputDecoration(
+                labelText: 'Molécule de substitution envisagée',
+                border: const OutlineInputBorder(),
+                hintText: 'ex : diazépam',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: 'Choisir dans la liste',
+                  onPressed: () => _ouvrirSelecteurSubstitution(context),
+                ),
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -370,6 +484,156 @@ class _SaisieTabState extends State<_SaisieTab> {
     if (parsed == null) return 'Nombre invalide';
     if (parsed < 0) return 'Doit être positif';
     return null;
+  }
+
+  Future<void> _ouvrirSelecteur(BuildContext context) async {
+    final resultat = await showModalBottomSheet<_SelectionMedicament>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _SelecteurMedicamentSheet(),
+    );
+    if (resultat != null) {
+      setState(() {
+        _nomController.text = resultat.nom;
+        _classeController.text = resultat.classe;
+      });
+    }
+  }
+
+  Future<void> _ouvrirSelecteurSubstitution(BuildContext context) async {
+    final resultat = await showModalBottomSheet<_SelectionMedicament>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _SelecteurMedicamentSheet(),
+    );
+    if (resultat != null) {
+      setState(() {
+        _substitutionController.text = resultat.nom;
+      });
+    }
+  }
+}
+
+class _SelectionMedicament {
+  final String nom;
+  final String classe;
+  const _SelectionMedicament({required this.nom, required this.classe});
+}
+
+class _SelecteurMedicamentSheet extends StatefulWidget {
+  const _SelecteurMedicamentSheet();
+
+  @override
+  State<_SelecteurMedicamentSheet> createState() =>
+      _SelecteurMedicamentSheetState();
+}
+
+class _SelecteurMedicamentSheetState extends State<_SelecteurMedicamentSheet> {
+  final _rechercheController = TextEditingController();
+  String _filtre = '';
+
+  @override
+  void dispose() {
+    _rechercheController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtreMinuscule = _filtre.trim().toLowerCase();
+
+    // Filtre par classe et par nom, ne garde que les classes non vides
+    // une fois le filtre appliqué.
+    final classesFiltrees = <String, List<String>>{};
+    for (final entry in MedicamentsReference.parClasse.entries) {
+      final medicamentsFiltres = filtreMinuscule.isEmpty
+          ? entry.value
+          : entry.value
+                .where((m) => m.toLowerCase().contains(filtreMinuscule))
+                .toList();
+      if (medicamentsFiltres.isNotEmpty) {
+        classesFiltrees[entry.key] = medicamentsFiltres;
+      }
+    }
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Choisir un médicament',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Liste indicative et non exhaustive. Si votre médicament '
+                'n\'y figure pas, saisissez-le manuellement.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _rechercheController,
+                decoration: const InputDecoration(
+                  labelText: 'Rechercher',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => setState(() => _filtre = value),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: classesFiltrees.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Aucun résultat. Saisissez le nom manuellement.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView(
+                        controller: scrollController,
+                        children: [
+                          for (final entry in classesFiltrees.entries)
+                            _buildGroupeClasse(entry.key, entry.value),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGroupeClasse(String classe, List<String> medicaments) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 4),
+          child: Text(
+            classe,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+        ),
+        for (final nom in medicaments)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(nom),
+            onTap: () => Navigator.pop(
+              context,
+              _SelectionMedicament(nom: nom, classe: classe),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -399,8 +663,7 @@ class _ImportExportTabState extends State<_ImportExportTab> {
 
   String get _codeExport {
     final data = widget.medicaments.map((m) => m.toJson()).toList();
-    final jsonStr = jsonEncode(data);
-    return base64Encode(utf8.encode(jsonStr));
+    return base64Encode(utf8.encode(jsonEncode(data)));
   }
 
   void _copierCode() {
@@ -468,7 +731,7 @@ class _ImportExportTabState extends State<_ImportExportTab> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            icon: const Icon(Icons.copy_outlined),
+            icon: const Icon(Icons.copy_outlined, color: Colors.white),
             label: const Text('Copier le code'),
           ),
           const SizedBox(height: 32),
@@ -507,56 +770,6 @@ class _ImportExportTabState extends State<_ImportExportTab> {
 }
 
 // ---------------------------------------------------------------------------
-// Widget carte (utilisé par _EnCoursTab)
-// ---------------------------------------------------------------------------
-
-class _MedicamentCard extends StatelessWidget {
-  final Medicament medicament;
-
-  const _MedicamentCard({required this.medicament});
-
-  @override
-  Widget build(BuildContext context) {
-    final double pourcentageRestant = medicament.doseInitiale == 0
-        ? 0
-        : (medicament.doseActuelle / medicament.doseInitiale) * 100;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        title: Text(
-          medicament.nom,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            '${medicament.classe} · Dose actuelle : '
-            '${medicament.doseActuelle} ${medicament.unite}',
-          ),
-        ),
-        trailing: SizedBox(
-          width: 56,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('${pourcentageRestant.toStringAsFixed(0)}%'),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: pourcentageRestant / 100,
-                color: AppColors.primaryColor,
-                backgroundColor: AppColors.primaryColor.withValues(alpha: 0.15),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Modèle
 // ---------------------------------------------------------------------------
 
@@ -567,6 +780,8 @@ class Medicament {
   final double doseInitiale;
   final double doseActuelle;
   final String unite;
+  final int? ancienneteTraitementMois;
+  final String? moleculeSubstitution;
 
   Medicament({
     String? id,
@@ -575,6 +790,8 @@ class Medicament {
     required this.doseInitiale,
     required this.doseActuelle,
     required this.unite,
+    this.ancienneteTraitementMois,
+    this.moleculeSubstitution,
   }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
 
   Map<String, dynamic> toJson() => {
@@ -584,6 +801,8 @@ class Medicament {
     'doseInitiale': doseInitiale,
     'doseActuelle': doseActuelle,
     'unite': unite,
+    'ancienneteTraitementMois': ancienneteTraitementMois,
+    'moleculeSubstitution': moleculeSubstitution,
   };
 
   factory Medicament.fromJson(Map<String, dynamic> json) => Medicament(
@@ -593,5 +812,7 @@ class Medicament {
     doseInitiale: (json['doseInitiale'] as num).toDouble(),
     doseActuelle: (json['doseActuelle'] as num).toDouble(),
     unite: json['unite'] as String,
+    ancienneteTraitementMois: json['ancienneteTraitementMois'] as int?,
+    moleculeSubstitution: json['moleculeSubstitution'] as String?,
   );
 }

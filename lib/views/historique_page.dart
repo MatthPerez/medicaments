@@ -25,6 +25,9 @@ class _HistoriquePageState extends State<HistoriquePage> {
     super.initState();
     _medicamentsRepo.addListener(_onChanged);
     _paliersRepo.addListener(_onChanged);
+    if (!_medicamentsRepo.estCharge) {
+      _medicamentsRepo.charger();
+    }
     if (!_paliersRepo.estCharge) {
       _paliersRepo.charger();
     }

@@ -24,6 +24,7 @@ flutter:
 
   assets:
     - lib/assets/images/medicaments.png
+    - lib/assets/images/medicaments_bg.png
     - lib/assets/images/plan.png
     - lib/assets/images/historique.png
     - lib/assets/images/parametres.png
