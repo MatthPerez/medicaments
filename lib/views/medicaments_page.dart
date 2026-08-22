@@ -5,6 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:medico/constants/colors.dart';
 import 'package:medico/data/medicaments_repository.dart';
 import 'package:medico/data/medicaments_reference.dart';
+import 'package:medico/views/ordonnances_page.dart';
+
+/// Convertit une date de prescription en nombre de mois écoulés,
+/// arrondi à l'entier inférieur. Retourne null si aucune date n'est
+/// renseignée.
+int? moisDepuisPrescription(DateTime? datePrescription) {
+  if (datePrescription == null) return null;
+  final jours = DateTime.now().difference(datePrescription).inDays;
+  if (jours < 0)
+    return 0; // date future saisie par erreur : traité comme "aujourd'hui"
+  return (jours / 30).floor();
+}
 
 class MedicamentsPage extends StatefulWidget {
   const MedicamentsPage({super.key});
@@ -25,9 +37,6 @@ class _MedicamentsPageState extends State<MedicamentsPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _repository.addListener(_onRepositoryChanged);
-    if (!_repository.estCharge) {
-      _repository.charger();
-    }
   }
 
   @override
@@ -47,6 +56,7 @@ class _MedicamentsPageState extends State<MedicamentsPage>
   void _enregistrerMedicament(Medicament medicament) {
     _repository.ajouterOuMettreAJour(medicament);
     setState(() => _medicamentEnEdition = null);
+    // Retour automatique sur l'onglet "En cours" après soumission.
     _tabController.animateTo(0);
   }
 
@@ -57,16 +67,22 @@ class _MedicamentsPageState extends State<MedicamentsPage>
 
   @override
   Widget build(BuildContext context) {
-    if (!_repository.estCharge) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     final medicaments = _repository.medicaments;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes médicaments'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Ordonnances',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const OrdonnancesPage()),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -145,103 +161,79 @@ class _EnCoursTab extends StatelessWidget {
       itemCount: medicaments.length,
       itemBuilder: (context, index) {
         final medicament = medicaments[index];
-        final double pourcentageRestant = medicament.doseInitiale == 0
-            ? 0
-            : (medicament.doseActuelle / medicament.doseInitiale) * 100;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                // Ligne 1 : nom + icônes (modifier / supprimer) + jauge
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         medicament.nom,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
                         ),
                       ),
-                    ),
-                    SizedBox(
-                      width: 44,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '${pourcentageRestant.toStringAsFixed(0)}%',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          const SizedBox(height: 2),
-                          LinearProgressIndicator(
-                            value: pourcentageRestant / 100,
-                            color: AppColors.primaryColor,
-                            backgroundColor: AppColors.primaryColor.withValues(
-                              alpha: 0.15,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        medicament.classe,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Modifier',
-                      onPressed: () => onModifier(medicament),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Supprimer',
-                      onPressed: () => onSupprimer(medicament.id),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                // Ligne 2 : classe
-                Text(
-                  medicament.classe,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 4),
-                // Ligne 3 : temps de traitement
-                Text(
-                  medicament.ancienneteTraitementMois != null
-                      ? 'Traitement depuis ${medicament.ancienneteTraitementMois} mois'
-                      : 'Ancienneté du traitement non renseignée',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: medicament.ancienneteTraitementMois != null
-                        ? null
-                        : Colors.grey.shade400,
-                    fontStyle: medicament.ancienneteTraitementMois != null
-                        ? FontStyle.normal
-                        : FontStyle.italic,
+                      const SizedBox(height: 2),
+                      Text(
+                        medicament.datePrescription != null
+                            ? 'Prescrit le ${_formatDate(medicament.datePrescription!)}'
+                            : 'Date de prescription non renseignée',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: medicament.datePrescription != null
+                              ? Colors.grey
+                              : Colors.grey.shade400,
+                          fontStyle: medicament.datePrescription != null
+                              ? FontStyle.normal
+                              : FontStyle.italic,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (medicament.moleculeSubstitution != null &&
+                                medicament.moleculeSubstitution!.isNotEmpty)
+                            ? 'Substitution envisagée : ${medicament.moleculeSubstitution}'
+                            : 'Aucune substitution envisagée',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              (medicament.moleculeSubstitution != null &&
+                                  medicament.moleculeSubstitution!.isNotEmpty)
+                              ? null
+                              : Colors.grey.shade400,
+                          fontStyle:
+                              (medicament.moleculeSubstitution != null &&
+                                  medicament.moleculeSubstitution!.isNotEmpty)
+                              ? FontStyle.normal
+                              : FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                // Ligne 4 : substitution envisagée
-                Text(
-                  (medicament.moleculeSubstitution != null &&
-                          medicament.moleculeSubstitution!.isNotEmpty)
-                      ? 'Substitution envisagée : ${medicament.moleculeSubstitution}'
-                      : 'Aucune substitution envisagée',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color:
-                        (medicament.moleculeSubstitution != null &&
-                            medicament.moleculeSubstitution!.isNotEmpty)
-                        ? null
-                        : Colors.grey.shade400,
-                    fontStyle:
-                        (medicament.moleculeSubstitution != null &&
-                            medicament.moleculeSubstitution!.isNotEmpty)
-                        ? FontStyle.normal
-                        : FontStyle.italic,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Modifier',
+                  onPressed: () => onModifier(medicament),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Supprimer',
+                  onPressed: () => onSupprimer(medicament.id),
                 ),
               ],
             ),
@@ -250,6 +242,10 @@ class _EnCoursTab extends StatelessWidget {
       },
     );
   }
+
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
 
 // ---------------------------------------------------------------------------
@@ -277,8 +273,8 @@ class _SaisieTabState extends State<_SaisieTab> {
   late final TextEditingController _doseInitialeController;
   late final TextEditingController _doseActuelleController;
   late final TextEditingController _uniteController;
-  late final TextEditingController _ancienneteController;
   late final TextEditingController _substitutionController;
+  late DateTime _datePrescription;
 
   @override
   void initState() {
@@ -293,12 +289,11 @@ class _SaisieTabState extends State<_SaisieTab> {
       text: m?.doseActuelle.toString() ?? '',
     );
     _uniteController = TextEditingController(text: m?.unite ?? 'mg');
-    _ancienneteController = TextEditingController(
-      text: m?.ancienneteTraitementMois?.toString() ?? '',
-    );
     _substitutionController = TextEditingController(
       text: m?.moleculeSubstitution ?? '',
     );
+    // Aujourd'hui par défaut si aucune date n'était déjà renseignée.
+    _datePrescription = m?.datePrescription ?? DateTime.now();
   }
 
   @override
@@ -308,15 +303,23 @@ class _SaisieTabState extends State<_SaisieTab> {
     _doseInitialeController.dispose();
     _doseActuelleController.dispose();
     _uniteController.dispose();
-    _ancienneteController.dispose();
     _substitutionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _choisirDatePrescription() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _datePrescription,
+      firstDate: DateTime(1990),
+      lastDate: DateTime.now(),
+    );
+    if (date != null) setState(() => _datePrescription = date);
   }
 
   void _valider() {
     if (!_formKey.currentState!.validate()) return;
 
-    final anciennete = _ancienneteController.text.trim();
     final substitution = _substitutionController.text.trim();
 
     final medicament = Medicament(
@@ -326,13 +329,36 @@ class _SaisieTabState extends State<_SaisieTab> {
       doseInitiale: double.parse(_doseInitialeController.text.trim()),
       doseActuelle: double.parse(_doseActuelleController.text.trim()),
       unite: _uniteController.text.trim(),
-      ancienneteTraitementMois: anciennete.isEmpty
-          ? null
-          : int.parse(anciennete),
+      datePrescription: _datePrescription,
       moleculeSubstitution: substitution.isEmpty ? null : substitution,
     );
 
     widget.onEnregistrer(medicament);
+  }
+
+  Future<void> _ouvrirSelecteur(BuildContext context) async {
+    final resultat = await showModalBottomSheet<_SelectionMedicament>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _SelecteurMedicamentSheet(),
+    );
+    if (resultat != null) {
+      setState(() {
+        _nomController.text = resultat.nom;
+        _classeController.text = resultat.classe;
+      });
+    }
+  }
+
+  Future<void> _ouvrirSelecteurSubstitution(BuildContext context) async {
+    final resultat = await showModalBottomSheet<_SelectionMedicament>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _SelecteurMedicamentSheet(),
+    );
+    if (resultat != null) {
+      setState(() => _substitutionController.text = resultat.nom);
+    }
   }
 
   @override
@@ -417,36 +443,25 @@ class _SaisieTabState extends State<_SaisieTab> {
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
             ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+                side: BorderSide(color: Colors.grey.shade400),
+              ),
+              tileColor: Colors.transparent,
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: const Text('Date de prescription'),
+              subtitle: Text(_formatDate(_datePrescription)),
+              onTap: _choisirDatePrescription,
+            ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 8),
             const Text(
               'Informations complémentaires (facultatif)',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Ces champs servent uniquement à afficher des repères '
-              'informatifs dans le plan de sevrage — ils ne déclenchent '
-              'aucun calcul automatique.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _ancienneteController,
-              decoration: const InputDecoration(
-                labelText: 'Ancienneté du traitement (en mois)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return null;
-                final parsed = int.tryParse(v.trim());
-                if (parsed == null || parsed < 0) {
-                  return 'Entier positif requis';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -486,33 +501,14 @@ class _SaisieTabState extends State<_SaisieTab> {
     return null;
   }
 
-  Future<void> _ouvrirSelecteur(BuildContext context) async {
-    final resultat = await showModalBottomSheet<_SelectionMedicament>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => const _SelecteurMedicamentSheet(),
-    );
-    if (resultat != null) {
-      setState(() {
-        _nomController.text = resultat.nom;
-        _classeController.text = resultat.classe;
-      });
-    }
-  }
-
-  Future<void> _ouvrirSelecteurSubstitution(BuildContext context) async {
-    final resultat = await showModalBottomSheet<_SelectionMedicament>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => const _SelecteurMedicamentSheet(),
-    );
-    if (resultat != null) {
-      setState(() {
-        _substitutionController.text = resultat.nom;
-      });
-    }
-  }
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
+
+// ---------------------------------------------------------------------------
+// Sélecteur de médicament (nom + classe, ou substitution)
+// ---------------------------------------------------------------------------
 
 class _SelectionMedicament {
   final String nom;
@@ -542,8 +538,6 @@ class _SelecteurMedicamentSheetState extends State<_SelecteurMedicamentSheet> {
   Widget build(BuildContext context) {
     final filtreMinuscule = _filtre.trim().toLowerCase();
 
-    // Filtre par classe et par nom, ne garde que les classes non vides
-    // une fois le filtre appliqué.
     final classesFiltrees = <String, List<String>>{};
     for (final entry in MedicamentsReference.parClasse.entries) {
       final medicamentsFiltres = filtreMinuscule.isEmpty
@@ -705,12 +699,13 @@ class _ImportExportTabState extends State<_ImportExportTab> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Copiez ce code pour sauvegarder ou transférer vos données '
-            'vers un autre appareil.',
+            'Copiez ce code pour sauvegarder ou transférer vos données vers un autre appareil.',
             style: TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 12),
           Container(
+            height: 150,
+            width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.primaryColor.withValues(alpha: 0.06),
@@ -719,9 +714,11 @@ class _ImportExportTabState extends State<_ImportExportTab> {
                 color: AppColors.primaryColor.withValues(alpha: 0.3),
               ),
             ),
-            child: SelectableText(
-              _codeExport,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                _codeExport,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -743,18 +740,22 @@ class _ImportExportTabState extends State<_ImportExportTab> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Collez un code exporté depuis cette application. '
-            'Cela remplacera la liste actuelle.',
+            'Collez un code exporté depuis cette application. Cela remplacera la liste actuelle.',
             style: TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _importController,
-            maxLines: 4,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'Collez le code ici',
-              errorText: _erreurImport,
+          SizedBox(
+            height: 150,
+            child: TextField(
+              controller: _importController,
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: 'Collez le code ici',
+                errorText: _erreurImport,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -780,7 +781,7 @@ class Medicament {
   final double doseInitiale;
   final double doseActuelle;
   final String unite;
-  final int? ancienneteTraitementMois;
+  final DateTime? datePrescription;
   final String? moleculeSubstitution;
 
   Medicament({
@@ -790,7 +791,7 @@ class Medicament {
     required this.doseInitiale,
     required this.doseActuelle,
     required this.unite,
-    this.ancienneteTraitementMois,
+    this.datePrescription,
     this.moleculeSubstitution,
   }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
 
@@ -801,7 +802,7 @@ class Medicament {
     'doseInitiale': doseInitiale,
     'doseActuelle': doseActuelle,
     'unite': unite,
-    'ancienneteTraitementMois': ancienneteTraitementMois,
+    'datePrescription': datePrescription?.toIso8601String(),
     'moleculeSubstitution': moleculeSubstitution,
   };
 
@@ -812,7 +813,9 @@ class Medicament {
     doseInitiale: (json['doseInitiale'] as num).toDouble(),
     doseActuelle: (json['doseActuelle'] as num).toDouble(),
     unite: json['unite'] as String,
-    ancienneteTraitementMois: json['ancienneteTraitementMois'] as int?,
+    datePrescription: json['datePrescription'] != null
+        ? DateTime.parse(json['datePrescription'] as String)
+        : null,
     moleculeSubstitution: json['moleculeSubstitution'] as String?,
   );
 }

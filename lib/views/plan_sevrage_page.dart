@@ -7,7 +7,7 @@ import 'package:gal/gal.dart';
 import 'package:medico/constants/colors.dart';
 import 'package:medico/data/medicaments_repository.dart';
 import 'package:medico/data/paliers_repository.dart';
-import 'package:medico/views/medicaments_page.dart' show Medicament;
+import 'package:medico/views/medicaments_page.dart' show Medicament, moisDepuisPrescription;
 
 class PlanSevragePage extends StatefulWidget {
   const PlanSevragePage({super.key});
@@ -829,7 +829,7 @@ class _FormulaireGenerationSheetState
   @override
   Widget build(BuildContext context) {
     final repere = RepereAshton.pour(
-      widget.medicament.ancienneteTraitementMois,
+      moisDepuisPrescription(widget.medicament.datePrescription),
     );
 
     return StatefulBuilder(

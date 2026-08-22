@@ -1,8 +1,8 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,18 +16,22 @@ class ContactsMedicauxPage extends StatefulWidget {
   State<ContactsMedicauxPage> createState() => _ContactsMedicauxPageState();
 }
 
-class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
+class _ContactsMedicauxPageState extends State<ContactsMedicauxPage>
+    with SingleTickerProviderStateMixin {
   final _repository = ContactsMedicauxRepository.instance;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _repository.addListener(_onChanged);
   }
 
   @override
   void dispose() {
     _repository.removeListener(_onChanged);
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -35,26 +39,80 @@ class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = _repository.contacts;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Contacts médicaux'), centerTitle: true),
-      body: SafeArea(
-        child: contacts.isEmpty
-            ? _buildEmptyState()
-            : ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: contacts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _buildLigne(contacts[index]),
-              ),
+      appBar: AppBar(
+        title: const Text('Contacts médicaux'),
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Contacts', icon: Icon(Icons.contacts_outlined)),
+            Tab(text: 'Import/Export', icon: Icon(Icons.swap_vert)),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _ouvrirFormulaire(context, null),
-        backgroundColor: AppColors.primaryColor,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Ajouter', style: TextStyle(color: Colors.white)),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _ListeTab(repository: _repository),
+          _ImportExportTab(repository: _repository),
+        ],
       ),
+      floatingActionButton: AnimatedBuilder(
+        animation: _tabController,
+        builder: (context, child) => _tabController.index == 0
+            ? FloatingActionButton.extended(
+                onPressed: () => _ouvrirFormulaire(context, null),
+                backgroundColor: AppColors.primaryColor,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  'Ajouter',
+                  style: TextStyle(color: Colors.white),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Future<void> _ouvrirFormulaire(
+    BuildContext context,
+    ContactMedical? contact,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _FormulaireContactSheet(
+        contactInitial: contact,
+        onValider: (c) => _repository.ajouterOuMettreAJour(c),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Onglet 1 : Liste des contacts
+// ---------------------------------------------------------------------------
+
+class _ListeTab extends StatelessWidget {
+  final ContactsMedicauxRepository repository;
+
+  const _ListeTab({required this.repository});
+
+  @override
+  Widget build(BuildContext context) {
+    final contacts = repository.contacts;
+
+    return SafeArea(
+      child: contacts.isEmpty
+          ? _buildEmptyState()
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: contacts.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) =>
+                  _buildLigne(context, contacts[index]),
+            ),
     );
   }
 
@@ -83,7 +141,8 @@ class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
     );
   }
 
-  Widget _buildLigne(ContactMedical contact) {
+  // Tuile de contact (ajouter ville)
+  Widget _buildLigne(BuildContext context, ContactMedical contact) {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
@@ -103,6 +162,35 @@ class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
     );
   }
 
+  // Widget _buildLigne(BuildContext context, ContactMedical contact) {
+  //   return Card(
+  //     margin: EdgeInsets.zero,
+  //     child: ListTile(
+  //       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //       leading: CircleAvatar(
+  //         backgroundColor: AppColors.primaryColor.withValues(alpha: 0.1),
+  //         child: Icon(Icons.person_outline, color: AppColors.primaryColor),
+  //       ),
+  //       title: Text(
+  //         contact.nom,
+  //         style: const TextStyle(fontWeight: FontWeight.w600),
+  //       ),
+  //       subtitle: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text(contact.qualite),
+  //           Text(
+  //             contact.ville,
+  //             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+  //           ),
+  //         ],
+  //       ),
+  //       trailing: const Icon(Icons.chevron_right),
+  //       onTap: () => _ouvrirFicheContact(context, contact),
+  //     ),
+  //   );
+  // }
+
   void _ouvrirFicheContact(BuildContext context, ContactMedical contact) {
     showModalBottomSheet<void>(
       context: context,
@@ -111,7 +199,14 @@ class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
         contact: contact,
         onModifier: () {
           Navigator.pop(context);
-          _ouvrirFormulaire(context, contact);
+          showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => _FormulaireContactSheet(
+              contactInitial: contact,
+              onValider: (c) => repository.ajouterOuMettreAJour(c),
+            ),
+          );
         },
         onSupprimer: () async {
           final confirme = await showDialog<bool>(
@@ -135,25 +230,276 @@ class _ContactsMedicauxPageState extends State<ContactsMedicauxPage> {
             ),
           );
           if (confirme == true) {
-            await _repository.supprimer(contact.id);
+            await repository.supprimer(contact.id);
             if (context.mounted) Navigator.pop(context);
           }
         },
       ),
     );
   }
+}
 
-  Future<void> _ouvrirFormulaire(
-    BuildContext context,
-    ContactMedical? contact,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _FormulaireContactSheet(
-        contactInitial: contact,
-        onValider: (c) => _repository.ajouterOuMettreAJour(c),
+// ---------------------------------------------------------------------------
+// Onglet 2 : Import / Export au format pipe
+// ---------------------------------------------------------------------------
+
+/// Format d'export : une ligne par contact, champs séparés par des `|`.
+/// Chaque champ est encodé via Uri.encodeComponent AVANT d'être joint,
+/// pour que le caractère `|` (ou un saut de ligne) présent dans une note
+/// ou une adresse ne casse jamais le découpage à l'import. Le résultat
+/// reste un texte pipe lisible, pas du base64.
+///
+/// Ordre des champs : id|nom|qualite|telephone|email|adressePostale|note
+class _CodecPipeContacts {
+  static String exporter(List<ContactMedical> contacts) {
+    return contacts
+        .map((c) {
+          final champs = [
+            c.id,
+            c.nom,
+            c.qualite,
+            c.telephone ?? '',
+            c.email ?? '',
+            c.adressePostale ?? '',
+            c.note,
+          ];
+          return champs.map(Uri.encodeComponent).join('|');
+        })
+        .join('\n');
+  }
+
+  /// Lance une [FormatException] si une ligne est mal formée.
+  static List<ContactMedical> importer(String code) {
+    final lignes = code
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    return lignes.map((ligne) {
+      final champs = ligne.split('|');
+      if (champs.length != 7) {
+        throw const FormatException(
+          'Ligne mal formée (nombre de champs incorrect).',
+        );
+      }
+      final decodes = champs.map(Uri.decodeComponent).toList();
+      return ContactMedical(
+        id: decodes[0].isEmpty ? null : decodes[0],
+        nom: decodes[1],
+        qualite: decodes[2],
+        telephone: decodes[3].isEmpty ? null : decodes[3],
+        email: decodes[4].isEmpty ? null : decodes[4],
+        adressePostale: decodes[5].isEmpty ? null : decodes[5],
+        note: decodes[6],
+      );
+    }).toList();
+  }
+}
+
+class _ImportExportTab extends StatefulWidget {
+  final ContactsMedicauxRepository repository;
+
+  const _ImportExportTab({required this.repository});
+
+  @override
+  State<_ImportExportTab> createState() => _ImportExportTabState();
+}
+
+class _ImportExportTabState extends State<_ImportExportTab> {
+  final _importController = TextEditingController();
+  String? _erreurImport;
+
+  @override
+  void dispose() {
+    _importController.dispose();
+    super.dispose();
+  }
+
+  String get _codeExport =>
+      _CodecPipeContacts.exporter(widget.repository.contacts);
+
+  void _copierCode() {
+    Clipboard.setData(ClipboardData(text: _codeExport));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Code copié dans le presse-papiers')),
+    );
+  }
+
+  Future<void> _importerCode() async {
+    setState(() => _erreurImport = null);
+    try {
+      final contacts = _CodecPipeContacts.importer(_importController.text);
+      if (contacts.isEmpty) {
+        setState(
+          () => _erreurImport = 'Aucun contact valide trouvé dans le code.',
+        );
+        return;
+      }
+
+      final confirme = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Importer ces contacts ?'),
+          content: Text(
+            '${contacts.length} contact(s) seront ajoutés ou mis à jour '
+            '(un contact existant avec le même identifiant sera écrasé).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Importer'),
+            ),
+          ],
+        ),
+      );
+      if (confirme != true || !context.mounted) return;
+
+      for (final contact in contacts) {
+        await widget.repository.ajouterOuMettreAJour(contact);
+      }
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${contacts.length} contact(s) importé(s).')),
+      );
+      _importController.clear();
+    } catch (e) {
+      setState(() => _erreurImport = 'Code invalide ou mal formaté.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Exporter',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Une ligne par contact, champs séparés par des pipes ( | ). '
+            'Copiez ce code pour sauvegarder ou transférer vos contacts.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 150,
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.primaryColor.withValues(alpha: 0.3),
+              ),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                _codeExport.isEmpty
+                    ? '(aucun contact à exporter)'
+                    : _codeExport,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: widget.repository.contacts.isEmpty ? null : _copierCode,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.copy_outlined, color: Colors.white),
+            label: const Text('Copier le code'),
+          ),
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+          const Text(
+            'Importer',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Collez un code exporté depuis cet onglet. Un contact avec le '
+            'même identifiant sera mis à jour ; les autres seront ajoutés.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 150,
+            child: TextField(
+              controller: _importController,
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: 'Collez le code ici',
+                errorText: _erreurImport,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _importerCode,
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Importer'),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Formatage d'affichage / de saisie du numéro de téléphone
+// ---------------------------------------------------------------------------
+
+/// Regroupe les chiffres d'un numéro par paires, séparées par des
+/// espaces (convention française : "06 12 34 56 78"). Ignore tout
+/// caractère non numérique déjà présent (espaces, points, tirets).
+String formatTelephoneAffichage(String telephone) {
+  final chiffres = telephone.replaceAll(RegExp(r'[^0-9+]'), '');
+  final buffer = StringBuffer();
+  int compteur = 0;
+  for (final char in chiffres.split('')) {
+    if (char == '+') {
+      buffer.write(char);
+      continue;
+    }
+    if (compteur > 0 && compteur % 2 == 0) buffer.write(' ');
+    buffer.write(char);
+    compteur++;
+  }
+  return buffer.toString();
+}
+
+/// TextInputFormatter qui insère automatiquement un espace tous les
+/// 2 chiffres pendant la saisie. Repositionne le curseur en fin de
+/// champ à chaque frappe — simplification qui fonctionne bien pour une
+/// saisie linéaire (taper au clavier) mais peut déplacer le curseur de
+/// façon inattendue si l'utilisateur édite au milieu du numéro déjà
+/// saisi (ex: correction d'un chiffre en début de numéro).
+class TelephoneInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formate = formatTelephoneAffichage(newValue.text);
+    return TextEditingValue(
+      text: formate,
+      selection: TextSelection.collapsed(offset: formate.length),
     );
   }
 }
@@ -221,7 +567,7 @@ class _FicheContactSheetState extends State<_FicheContactSheet> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.phone_outlined),
-                title: Text(contact.telephone!),
+                title: Text(formatTelephoneAffichage(contact.telephone!)),
                 trailing: const Icon(Icons.call, size: 20),
                 onTap: () => _appeler(contact.telephone!),
               ),
@@ -334,7 +680,7 @@ class _FicheContactSheetState extends State<_FicheContactSheet> {
       ..writeln(contact.nom)
       ..writeln(contact.qualite);
     if (contact.telephone != null && contact.telephone!.isNotEmpty) {
-      buffer.writeln('Tél : ${contact.telephone}');
+      buffer.writeln('Tél : ${formatTelephoneAffichage(contact.telephone!)}');
     }
     if (contact.email != null && contact.email!.isNotEmpty) {
       buffer.writeln('Email : ${contact.email}');
@@ -510,7 +856,10 @@ class _ContenuExportContact extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (contact.telephone != null && contact.telephone!.isNotEmpty)
-            _ligneExport(Icons.phone_outlined, contact.telephone!),
+            _ligneExport(
+              Icons.phone_outlined,
+              formatTelephoneAffichage(contact.telephone!),
+            ),
           if (contact.email != null && contact.email!.isNotEmpty)
             _ligneExport(Icons.email_outlined, contact.email!),
           if (contact.adressePostale != null &&
@@ -577,7 +926,9 @@ class _FormulaireContactSheetState extends State<_FormulaireContactSheet> {
     final c = widget.contactInitial;
     _nomController = TextEditingController(text: c?.nom ?? '');
     _qualiteController = TextEditingController(text: c?.qualite ?? '');
-    _telephoneController = TextEditingController(text: c?.telephone ?? '');
+    _telephoneController = TextEditingController(
+      text: c?.telephone != null ? formatTelephoneAffichage(c!.telephone!) : '',
+    );
     _emailController = TextEditingController(text: c?.email ?? '');
     _adresseController = TextEditingController(text: c?.adressePostale ?? '');
     _noteController = TextEditingController(text: c?.note ?? '');
@@ -596,14 +947,18 @@ class _FormulaireContactSheetState extends State<_FormulaireContactSheet> {
 
   void _valider() {
     if (!_formKey.currentState!.validate()) return;
+    // Stocke le téléphone sans les espaces d'affichage — la mise en forme
+    // est reconstruite à la volée via formatTelephoneAffichage() partout
+    // où il est montré, pour rester compatible avec `tel:` (qui tolère
+    // les espaces mais autant stocker une forme brute).
+    final telephoneBrut = _telephoneController.text.replaceAll(' ', '').trim();
+
     widget.onValider(
       ContactMedical(
         id: widget.contactInitial?.id,
         nom: _nomController.text.trim(),
         qualite: _qualiteController.text.trim(),
-        telephone: _telephoneController.text.trim().isEmpty
-            ? null
-            : _telephoneController.text.trim(),
+        telephone: telephoneBrut.isEmpty ? null : telephoneBrut,
         email: _emailController.text.trim().isEmpty
             ? null
             : _emailController.text.trim(),
@@ -668,8 +1023,10 @@ class _FormulaireContactSheetState extends State<_FormulaireContactSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Téléphone (facultatif)',
                   border: OutlineInputBorder(),
+                  hintText: '06 12 34 56 78',
                 ),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [TelephoneInputFormatter()],
               ),
               const SizedBox(height: 12),
               TextFormField(
